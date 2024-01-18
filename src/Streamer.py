@@ -8,9 +8,11 @@ import cantools
 import pandas as pd 
 import json 
 from datetime import datetime
+import pysftp
 
 class Streamer:
     def __init__(self):
+        self.dbc = ''
         self.router_ip = '192.168.0.0' # dummy values 
         self.port_pubsub = '5555' # dummy values 
         self.port_routerdealer = '5556' # dummy values 
@@ -19,7 +21,6 @@ class Streamer:
         self.stop_event = threading.Event()
         self.configure_socket()
         self.create_poller()
-        self.dbc = ''
 
     def configure_socket(self):
         context = zmq.Context()
@@ -91,6 +92,11 @@ class Streamer:
         data_flow_thread.start()
         return data_flow_thread
 
+    def sftp_upload_folder(self, local_folder_path, remote_folder_path, hostname, username, password):
+        with pysftp.Connection(host=hostname, username=username, password=password) as sftp:
+            sftp.chdir(remote_folder_path)
+            sftp.put_r(local_folder_path)
+
     def switch_command(self):
         while True:
             socks = dict(self.poller.poll(self.timeout))
@@ -104,7 +110,7 @@ class Streamer:
                     self.thread_function(self.send_data, (self.router_ip, self.port_routerdealer, self.data_queue, self.stop_event))
                 if topic.decode() == 'stop':
                     self.stop_event.set()
-                    # send sftp file 
+                    self.sftp_upload_folder('./', './', self.router_ip, user, passwd)
 
 class Decoder:
     def __init__(self, dbc):
@@ -158,7 +164,6 @@ class Data:
     def convert_to_json(self):
         with open(f'{self.hostname}__decoded_data__{self.current_datetime}.json', 'w') as json_file:
             json.dump(self.signals, json_file, default=self.dict_obj_converter, indent=4)
-
 
 def main():
     streamer = Streamer()
