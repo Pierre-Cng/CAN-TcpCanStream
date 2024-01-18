@@ -1,0 +1,6 @@
+*.txt
+*.dbc
+*.log
+*.csv
+*.json
+__pycache__/
