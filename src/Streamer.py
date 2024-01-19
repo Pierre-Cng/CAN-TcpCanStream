@@ -20,7 +20,6 @@ class Streamer:
         self.data_queue = Queue()
         self.stop_event = threading.Event()
         self.configure_socket()
-        self.create_poller()
 
     def configure_socket(self):
         context = zmq.Context()
@@ -30,12 +29,7 @@ class Streamer:
         except Exception as e:
             print(f'Error connecting to socket: {e}')
         self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
-     
-    def create_poller(self):
-        self.poller = zmq.Poller()
-        self.poller.register(self.sub_socket, zmq.POLLIN)
-        self.poller.register(self.dealer_socket, zmq.POLLIN)
-    
+
     def identify_response(self, router_ip, port):
         context = zmq.Context()
         dealer_socket = context.socket(zmq.DEALER)
@@ -99,18 +93,19 @@ class Streamer:
 
     def switch_command(self):
         while True:
-            socks = dict(self.poller.poll(self.timeout))
-            if self.sub_socket in socks and socks[self.sub_socket] == zmq.POLLIN:
-                topic, message = self.sub_socket.recv_multipart()
-                if topic.decode() == 'identify':
-                    self.thread_function(self.identify_response, (self.router_ip, self.port_routerdealer))
-                if topic.decode() == 'start':
-                    self.stop_event.clear()
-                    self.thread_function(self.canbus_reader, (self.dbc, self.data_queue, self.stop_event))
-                    self.thread_function(self.send_data, (self.router_ip, self.port_routerdealer, self.data_queue, self.stop_event))
-                if topic.decode() == 'stop':
-                    self.stop_event.set()
-                    self.sftp_upload_folder('./', './', self.router_ip, user, passwd)
+            try:
+                topic, message = self.sub_socket.recv_multipart(flags=zmq.DONTWAIT)
+            except zmq.Again:
+                topic = ''
+            if topic.decode() == 'identify':
+                self.thread_function(self.identify_response, (self.router_ip, self.port_routerdealer))
+            if topic.decode() == 'start':
+                self.stop_event.clear()
+                self.thread_function(self.canbus_reader, (self.dbc, self.data_queue, self.stop_event))
+                self.thread_function(self.send_data, (self.router_ip, self.port_routerdealer, self.data_queue, self.stop_event))
+            if topic.decode() == 'stop':
+                self.stop_event.set()
+                self.sftp_upload_folder('./', './', self.router_ip, user, passwd)
 
 class Decoder:
     def __init__(self, dbc):
