@@ -9,13 +9,14 @@ import pandas as pd
 import json 
 from datetime import datetime
 import pysftp
+import os
 
 class Streamer:
     def __init__(self):
-        self.dbc = ''
-        self.router_ip = '192.168.0.0' # dummy values 
-        self.port_pubsub = '5555' # dummy values 
-        self.port_routerdealer = '5556' # dummy values 
+        self.dbc = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'battery.dbc')
+        self.router_ip = '192.168.137.1' # dummy values 
+        self.port_pubsub = '5558' # dummy values 
+        self.port_routerdealer = '5559' # dummy values 
         self.timeout = 100
         self.data_queue = Queue()
         self.stop_event = threading.Event()
@@ -34,7 +35,7 @@ class Streamer:
         context = zmq.Context()
         dealer_socket = context.socket(zmq.DEALER)
         dealer_socket.connect(f'tcp://{router_ip}:{port}')
-        message_id = -1 
+        message_id = str(-1)
         message = socket.gethostname()
         for attempt in range(5):
             try:
@@ -46,24 +47,27 @@ class Streamer:
         context.term()
 
     def send_data(self, router_ip, port, data_queue, stop_event):
+        print('start send data')
         context = zmq.Context()
         dealer_socket = context.socket(zmq.DEALER)
         dealer_socket.connect(f'tcp://{router_ip}:{port}')
         message_id = 0 
         while not stop_event.is_set():
             if not data_queue.empty():
-                    data_line = data_queue.get()
-            for attempt in range(2):
-                try:
-                    dealer_socket.send_multipart([message_id.encode(), data_line.encode()])
-                    time.sleep(0.05)
-                except Exception as e:
-                    print(f'Error sending message: {e}')
-            message_id += 1
+                data_line = data_queue.get()
+                for attempt in range(2):
+                    try:
+                        id = str(message_id)
+                        dealer_socket.send_multipart([id.encode(), data_line.encode()])
+                        time.sleep(0.05)
+                    except Exception as e:
+                        print(f'Error sending message: {e}')
+                message_id += 1
         dealer_socket.close()
         context.term()
 
     def canbus_reader(self, dbc, data_queue, stop_event):
+            print('start can reader')
             bus = can.interface.Bus(channel='can0', bustype='socketcan')
             decoder = Decoder(dbc)
             try:
@@ -95,11 +99,13 @@ class Streamer:
         while True:
             try:
                 topic, message = self.sub_socket.recv_multipart(flags=zmq.DONTWAIT)
+                print(topic, message)
             except zmq.Again:
-                topic = ''
+                topic = b''
             if topic.decode() == 'identify':
                 self.thread_function(self.identify_response, (self.router_ip, self.port_routerdealer))
             if topic.decode() == 'start':
+                print('start recording')
                 self.stop_event.clear()
                 self.thread_function(self.canbus_reader, (self.dbc, self.data_queue, self.stop_event))
                 self.thread_function(self.send_data, (self.router_ip, self.port_routerdealer, self.data_queue, self.stop_event))

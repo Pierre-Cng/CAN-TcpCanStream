@@ -1,13 +1,6 @@
 zmq
-time 
-socket
-threading 
-queue 
 python-can
 cantools 
 pandas
-json 
-datetime
 pysftp
 netifaces
-struct
