@@ -133,7 +133,7 @@ class Decoder:
             y = decoded_signals[signal]
             if isinstance(y, cantools.database.namedsignalvalue.NamedSignalValue):
                 y = y.value
-            signal = message.name + '.' + signal
+            signal = self.data.hostname + '.' + message.name + '.' + signal
             data_queue.put(f'{signal}, {x}, {y}')
             self.data.add_value(signal, x, y)
 
