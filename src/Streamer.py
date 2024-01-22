@@ -112,7 +112,7 @@ class Streamer:
                 self.thread_function(self.send_data, (self.router_ip, self.port_routerdealer, self.data_queue, self.stop_event))
             if topic.decode() == 'stop':
                 self.stop_event.set()
-                self.sftp_upload_folder('./', './', self.router_ip, user, passwd)
+                #self.sftp_upload_folder('./', './', self.router_ip, user, passwd)
 
 class Decoder:
     def __init__(self, dbc):
@@ -131,6 +131,8 @@ class Decoder:
         for signal in decoded_signals:
             x = timestamp
             y = decoded_signals[signal]
+            if isinstance(y, cantools.database.namedsignalvalue.NamedSignalValue):
+                y = y.value
             signal = message.name + '.' + signal
             data_queue.put(f'{signal}, {x}, {y}')
             self.data.add_value(signal, x, y)
