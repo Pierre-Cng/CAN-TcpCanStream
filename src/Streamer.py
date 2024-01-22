@@ -59,7 +59,8 @@ class Streamer:
                     try:
                         id = str(message_id)
                         dealer_socket.send_multipart([id.encode(), data_line.encode()])
-                        time.sleep(0.05)
+                        time.sleep(0.005)
+                        print(id, data_line)
                     except Exception as e:
                         print(f'Error sending message: {e}')
                 message_id += 1
