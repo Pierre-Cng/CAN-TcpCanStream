@@ -97,8 +97,12 @@ class Streamer:
         return data_flow_thread
 
     def switch_command(self):
+        start_time = time.time()
         status = ''
         while True:
+            duration = round(time.time() - start_time)
+            if duration % 30 == 0:
+                status = ''
             try:
                 topic, message = self.sub_socket.recv_multipart(flags=zmq.DONTWAIT)
             except zmq.Again:
