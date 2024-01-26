@@ -106,12 +106,12 @@ class Streamer:
             if topic.decode() == 'identify':
                 if status != 'identify':
                     print('identify')
-                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -3, f'{socket.gethostname} - identify'))
+                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -3, f'{socket.gethostname()} - identify'))
                     status = 'identify'
             if topic.decode() == 'start':
                 if status != 'start':
                     print('start')
-                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -2, f'{socket.gethostname} - start'))
+                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -2, f'{socket.gethostname()} - start'))
                     self.stop_event.clear()
                     self.thread_function(self.canbus_reader, (self.dbc, self.data_queue, self.stop_event))
                     self.thread_function(self.send_data, (self.router_ip, self.port_routerdealer, self.data_queue, self.stop_event))
@@ -119,7 +119,7 @@ class Streamer:
             if topic.decode() == 'stop':
                 print('stop')
                 if status != 'stop':
-                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -2, f'{socket.gethostname} - stop'))
+                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -2, f'{socket.gethostname()} - stop'))
                     self.stop_event.set()
                     status = 'stop' 
 
