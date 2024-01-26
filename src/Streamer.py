@@ -10,8 +10,10 @@ import json
 from datetime import datetime
 import socket, struct
 import os
+import glob
 
 home_directory = os.getenv('HOME')
+device_name = socket.gethostname()
 
 class Streamer:
     def __init__(self):
@@ -98,6 +100,16 @@ class Streamer:
         data_flow_thread.daemon = True 
         data_flow_thread.start()
         return data_flow_thread
+    
+    def cleanup_logfiles(self):
+        pattern = os.path.join(home_directory, f"{device_name}_*")
+        files_to_remove = glob.glob(pattern)
+        for file_path in files_to_remove:
+            try:
+                os.remove(file_path)
+                print(f"File removed: {file_path}")
+            except Exception as e:
+                print(f"Error removing file {file_path}: {e}")
 
     def switch_command(self):
         start_time = time.time()
@@ -113,12 +125,12 @@ class Streamer:
             if topic.decode() == 'identify':
                 if status != 'identify':
                     print('identify')
-                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -3, f'{socket.gethostname()} - identify'))
+                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -4, f'{device_name} - identify'))
                     status = 'identify'
             if topic.decode() == 'start':
                 if status != 'start':
                     print('start')
-                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -2, f'{socket.gethostname()} - start'))
+                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -3, f'{device_name} - start'))
                     self.stop_event.clear()
                     self.thread_function(self.canbus_reader, (self.dbc, self.data_queue, self.stop_event))
                     self.thread_function(self.send_data, (self.router_ip, self.port_routerdealer, self.data_queue, self.stop_event))
@@ -126,9 +138,15 @@ class Streamer:
             if topic.decode() == 'stop':
                 print('stop')
                 if status != 'stop':
-                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -2, f'{socket.gethostname()} - stop'))
+                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -2, f'{device_name} - stop'))
                     self.stop_event.set()
                     status = 'stop' 
+            if topic.decode() == 'clean':
+                print('clean')
+                if status != 'clean':
+                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -1, f'{device_name} - clean'))
+                    self.cleanup_logfiles()
+                    status = 'clean' 
 
 class Decoder:
     def __init__(self, dbc):
@@ -157,7 +175,7 @@ class Data:
     def __init__(self):
         self.signals = {}
         self.current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        self.hostname = socket.gethostname()
+        self.hostname = device_name
 
     def add_value(self, signal, x, y):
         self.log_to_file('decoded_trace', f'{signal}, {x}, {y}')
