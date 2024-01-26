@@ -2,5 +2,3 @@ zmq
 python-can
 cantools 
 pandas
-pysftp
-netifaces

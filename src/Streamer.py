@@ -8,19 +8,26 @@ import cantools
 import pandas as pd 
 import json 
 from datetime import datetime
-import pysftp
-import os
+import socket, struct
 
 class Streamer:
     def __init__(self):
-        self.dbc = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'battery.dbc')
-        self.router_ip = '192.168.137.1' # dummy values 
-        self.port_pubsub = '5558' # dummy values 
-        self.port_routerdealer = '5559' # dummy values 
+        self.dbc = '~/dbc.dbc'
+        self.router_ip = self.get_router_ip()
+        self.port_pubsub = '5558' 
+        self.port_routerdealer = '5559'
         self.timeout = 100
         self.data_queue = Queue()
         self.stop_event = threading.Event()
         self.configure_socket()
+
+    def get_router_ip(self):
+        with open("/proc/net/route") as fh:
+            for line in fh:
+                fields = line.strip().split()
+                if fields[1] != '00000000' or not int(fields[3], 16) & 2:
+                    continue
+                return socket.inet_ntoa(struct.pack("<L", int(fields[2], 16)))
 
     def configure_socket(self):
         context = zmq.Context()
@@ -31,12 +38,11 @@ class Streamer:
             print(f'Error connecting to socket: {e}')
         self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
 
-    def identify_response(self, router_ip, port):
+    def ack_response(self, router_ip, port, message_id, message):
         context = zmq.Context()
         dealer_socket = context.socket(zmq.DEALER)
         dealer_socket.connect(f'tcp://{router_ip}:{port}')
-        message_id = str(-1)
-        message = socket.gethostname()
+        message_id = str(message_id)
         for attempt in range(5):
             try:
                 dealer_socket.send_multipart([message_id.encode(), message.encode()])
@@ -47,7 +53,6 @@ class Streamer:
         context.term()
 
     def send_data(self, router_ip, port, data_queue, stop_event):
-        print('start send data')
         context = zmq.Context()
         dealer_socket = context.socket(zmq.DEALER)
         dealer_socket.connect(f'tcp://{router_ip}:{port}')
@@ -71,12 +76,12 @@ class Streamer:
             print('start can reader')
             bus = can.interface.Bus(channel='can0', bustype='socketcan')
             decoder = Decoder(dbc)
+            start_time = time.perf_counter()
             try:
-                start_time = time.perf_counter()
                 while not stop_event.is_set():
                     message = bus.recv(timeout=0.1)  
                     if message is not None:
-                        timestamp = start_time - time.perf_counter()
+                        timestamp = time.perf_counter() - start_time
                         decoder.add_msg(timestamp, message.arbitration_id, message.data, data_queue)
             except Exception as e:
                 print(f'Error decoding message: {e}')
@@ -91,28 +96,32 @@ class Streamer:
         data_flow_thread.start()
         return data_flow_thread
 
-    def sftp_upload_folder(self, local_folder_path, remote_folder_path, hostname, username, password):
-        with pysftp.Connection(host=hostname, username=username, password=password) as sftp:
-            sftp.chdir(remote_folder_path)
-            sftp.put_r(local_folder_path)
-
     def switch_command(self):
+        status = ''
         while True:
             try:
                 topic, message = self.sub_socket.recv_multipart(flags=zmq.DONTWAIT)
-                print(topic, message)
             except zmq.Again:
                 topic = b''
             if topic.decode() == 'identify':
-                self.thread_function(self.identify_response, (self.router_ip, self.port_routerdealer))
+                if status != 'identify':
+                    print('identify')
+                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -3, f'{socket.gethostname} - identify'))
+                    status = 'identify'
             if topic.decode() == 'start':
-                print('start recording')
-                self.stop_event.clear()
-                self.thread_function(self.canbus_reader, (self.dbc, self.data_queue, self.stop_event))
-                self.thread_function(self.send_data, (self.router_ip, self.port_routerdealer, self.data_queue, self.stop_event))
+                if status != 'start':
+                    print('start')
+                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -2, f'{socket.gethostname} - start'))
+                    self.stop_event.clear()
+                    self.thread_function(self.canbus_reader, (self.dbc, self.data_queue, self.stop_event))
+                    self.thread_function(self.send_data, (self.router_ip, self.port_routerdealer, self.data_queue, self.stop_event))
+                    status = 'start'
             if topic.decode() == 'stop':
-                self.stop_event.set()
-                #self.sftp_upload_folder('./', './', self.router_ip, user, passwd)
+                print('stop')
+                if status != 'stop':
+                    self.thread_function(self.ack_response, (self.router_ip, self.port_routerdealer, -2, f'{socket.gethostname} - stop'))
+                    self.stop_event.set()
+                    status = 'stop' 
 
 class Decoder:
     def __init__(self, dbc):
