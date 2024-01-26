@@ -9,10 +9,13 @@ import pandas as pd
 import json 
 from datetime import datetime
 import socket, struct
+import os
+
+home_directory = os.getenv('HOME')
 
 class Streamer:
     def __init__(self):
-        self.dbc = '~/dbc.dbc'
+        self.dbc = f'{home_directory}/dbc.dbc'
         self.router_ip = self.get_router_ip()
         self.port_pubsub = '5558' 
         self.port_routerdealer = '5559'
