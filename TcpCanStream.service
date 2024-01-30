@@ -1,0 +1,10 @@
+[Unit]
+Description=Run TcpCanStream listener
+After=socketcan_wakeup.service
+
+[Service]
+Type=simple
+ExecStart=/bin/TcpCanStream.sh
+
+[Install]
+WantedBy=multi-user.target
