@@ -12,7 +12,7 @@ import socket, struct
 import os
 import glob
 
-home_directory = os.getenv('HOME')
+home_directory = '/home/canlogger'
 device_name = socket.gethostname()
 
 class Streamer:
