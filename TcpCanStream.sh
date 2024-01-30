@@ -1,4 +1,4 @@
 #!/bin/bash
 
-source venv/bin/activate
-python ./CAN-TcpCanStream/src/Streamer.py
+source /home/YOURUSERNAME/venv/bin/activate
+python /home/YOURSUSERNAME/CAN-TcpCanStream/src/Streamer.py
