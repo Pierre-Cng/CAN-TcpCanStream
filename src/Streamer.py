@@ -102,6 +102,14 @@ class Streamer:
         return data_flow_thread
     
     def cleanup_logfiles(self):
+        while True:
+            csv_files = [f for f in os.listdir(home_directory) if f.endswith(".csv")]
+            if csv_files:
+                print(f"CSV file(s) found in {home_directory}: {csv_files}")
+                break
+            else:
+                print(f"Waiting for any CSV file to be created in {home_directory}...")
+                time.sleep(0.2)
         pattern = os.path.join(home_directory, f"{device_name}_*")
         files_to_remove = glob.glob(pattern)
         for file_path in files_to_remove:
